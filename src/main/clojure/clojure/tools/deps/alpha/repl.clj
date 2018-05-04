@@ -28,7 +28,6 @@
                    (if (instance? DynamicClassLoader parent)
                      (recur parent)
                      loader)))]
-    (println "  add-url" url "=>" loader)
     (if (instance? DynamicClassLoader loader)
       (.addURL ^DynamicClassLoader loader u)
       (throw (IllegalAccessError. "Context classloader is not a DynamicClassLoader")))))
@@ -48,14 +47,12 @@
   ([lib coord]
     (add-lib lib coord {:mvn/repos mvn/standard-repos}))
   ([lib coord config]
-   (println "\nadd-lib" lib coord)
    (let [existing-libs (libmap/lib-map)]
      (if (contains? existing-libs lib)
        false
        (let [deps (merge config existing-libs {:deps {lib coord}})
              updated-libs (deps/resolve-deps deps nil)
              new-libs (select-keys updated-libs (set/difference (set (keys updated-libs)) (set (keys existing-libs))))
-             _ (println "  NEW" (sort (keys new-libs)))
              paths (mapcat :paths (vals new-libs))
              urls (->> paths (map jio/file) (map #(.toURL ^File %)))]
          (run! add-loader-url urls)
