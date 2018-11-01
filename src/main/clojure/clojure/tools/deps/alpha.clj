@@ -32,20 +32,33 @@
    :main-opts (comp last #(remove nil? %) vector)
    :verbose #(or %1 %2)})
 
+(defn- choose-rule [alias-key]
+  (or (merge-alias-rules alias-key)
+    (throw (ex-info (format "Unknown alias key: %s" alias-key) {:key alias-key}))))
+
 (defn- merge-alias-maps
   "Like merge-with, but using custom per-alias-key merge function"
   [& ms]
   (reduce
     #(reduce
-       (fn [m [k v]] (update m k (merge-alias-rules k) v))
+       (fn [m [k v]] (update m k (choose-rule k) v))
        %1 %2)
     {} ms))
+
+(defn- check-aliases
+  "Check that all aliases are known and error if aliases are undeclared"
+  [deps aliases]
+  (if-let [unknown (seq (remove #(contains? (:aliases deps) %) aliases))]
+    (throw (ex-info (str "Specified aliases are undeclared: " (vec unknown))
+             {:aliases (vec unknown), :available (-> deps :aliases keys vec)}))
+    aliases))
 
 (defn combine-aliases
   "Find, read, and combine alias maps identified by alias keywords from
   a deps configuration into a single args map."
   [deps alias-kws]
   (->> alias-kws
+    (check-aliases deps)
     (map #(get-in deps [:aliases %]))
     (apply merge-alias-maps)))
 
@@ -165,7 +178,7 @@
             coord-id (ext/dep-id lib use-coord config)]
         (when verbose (println "Expanding" lib coord-id))
         (if-let [action (include-coord? version-map lib use-coord coord-id parents exclusions verbose)]
-          (let [{manifest-type :deps/manifest :as manifest-info} (ext/manifest-type lib coord config)
+          (let [{manifest-type :deps/manifest :as manifest-info} (ext/manifest-type lib use-coord config)
                 use-coord (merge use-coord manifest-info)
                 children (canonicalize-deps (ext/coord-deps lib use-coord manifest-type config) config)
                 use-path (conj parents lib)

@@ -1,6 +1,17 @@
 Changelog
 ===========
 
+* 0.5.460 on Oct 17, 2018
+  * Use newer version of aws-maven under s3-wagon-private
+* 0.5.452 on Sept 15, 2018 
+  * TDEPS-92 error and report on unknown alias key
+  * TDEPS-12 add support for multiple classifiers in libs
+  * TDEPS-95 fix bug preventing :default-deps from working
+* 0.5.442 on July 19, 2018
+  * TDEPS-85 error on unknown aliases
+* 0.5.435 on May 11, 2018 
+  * TDEPS-9 support Maven deps in authenticated repositories
+  * Use embedded pom to traverse transitive deps for a local dep jar
 * 0.5.425 on Apr 13, 2018 
   * TDEPS-73 detect invalid deps.edn file and error
   * TDEPS-61 use Clojars CDN repo
