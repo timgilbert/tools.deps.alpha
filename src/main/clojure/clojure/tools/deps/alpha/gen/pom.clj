@@ -50,11 +50,26 @@
   [path]
   [::pom/sourceDirectory path])
 
+(defn- to-repo-policy
+  [parent-tag section-config]
+  (when section-config
+    [parent-tag
+     (for [[k value] section-config
+           :let [tag (case k
+                       :update-policy   ::pom/updatePolicy
+                       :enabled         ::pom/enabled
+                       :checksum-policy ::pom/checksumPolicy
+                       nil)]
+           :when tag]
+       [tag (str value)])]))
+
 (defn- to-repo
   [[name repo]]
   [::pom/repository
    [::pom/id name]
-   [::pom/url (:url repo)]])
+   [::pom/url (:url repo)]
+   (to-repo-policy ::pom/snapshots (:snapshots repo))
+   (to-repo-policy ::pom/releases (:releases repo))])
 
 (defn- gen-repos
   [repos]

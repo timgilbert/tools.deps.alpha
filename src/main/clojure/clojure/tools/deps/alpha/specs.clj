@@ -72,8 +72,14 @@
 ;; maven 
 (s/def :mvn/repos (s/map-of ::repo-id ::repo))
 (s/def ::repo-id string?)
-(s/def ::repo (s/keys :opt-un [::url]))
+(s/def ::repo (s/keys :opt-un [::url ::releases ::snapshots]))
 (s/def ::url string?)
+(s/def ::repo-policies (s/keys :opt-un [::enabled ::update-policy ::checksum-policy]))
+(s/def ::releases ::repo-policies)
+(s/def ::snapshots ::repo-policies)
+(s/def ::enabled boolean?)
+(s/def ::update-policy string?)
+(s/def ::checksum-policy string?)
 (s/def :mvn/local-repo string?)
 
 ;; API
