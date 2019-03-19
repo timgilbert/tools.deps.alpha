@@ -16,7 +16,9 @@
     [clojure.tools.deps.alpha.util.io :as io :refer [printerrln]]
     [clojure.tools.deps.alpha.script.parse :as parse])
   (:import
-    [clojure.lang ExceptionInfo]))
+   [clojure.lang ExceptionInfo]
+   (java.util.jar JarOutputStream Attributes$Name Manifest)
+   (java.io File)))
 
 (def ^:private opts
   [;; deps.edn inputs
@@ -24,7 +26,8 @@
    [nil "--config-data EDN" "Final deps.edn data to treat as the last deps.edn file" :parse-fn parse/parse-config]
    ;; output files
    [nil "--libs-file PATH" "Libs cache file to write"]
-   [nil "--cp-file PATH" "Classpatch cache file to write"]
+   [nil "--cp-file PATH" "Classpath cache file to write"]
+   [nil "--cp-jar PATH" "Classpath jar file to write"]
    [nil "--jvm-file PATH" "JVM options file"]
    [nil "--main-file PATH" "Main options file"]
    [nil "--skip-cp" "Skip writing .cp and .libs files"]
@@ -67,16 +70,40 @@
   (when-let [unknown (seq (remove #(contains? (:aliases deps) %) (distinct aliases)))]
     (printerrln "WARNING: Specified aliases are undeclared:" (vec unknown))))
 
+(defn- manifest-classpath
+  "Translate the classpath into a format suitable for a jar manifest, by changing all
+  of the paths to file:// URIs and separating the list by single spaces."
+  [classpath]
+  (->> (for [path (str/split classpath (re-pattern File/pathSeparator))]
+         (-> path jio/file .getAbsoluteFile .toURI .toString))
+       (str/join " ")))
+
+(defn write-pathing-jar
+  "Create a \"pathing jar\" - a jar file containing only a classpath in its manifest,
+  useful in systems where command-line arguments have a limited length."
+  [^String filename classpath]
+  (let [manifest (Manifest.)]
+    (doto (.getMainAttributes manifest)
+      (.put Attributes$Name/CLASS_PATH (manifest-classpath classpath))
+      (.put Attributes$Name/MANIFEST_VERSION "1.0"))
+    (doto (JarOutputStream. (jio/output-stream filename) manifest)
+      (.setLevel JarOutputStream/STORED)
+      (.flush)
+      (.close))
+    filename))
+
 (defn run
   "Run make-classpath script. See -main for details."
-  [{:keys [libs-file cp-file jvm-file main-file skip-cp
+  [{:keys [libs-file cp-file jvm-file main-file skip-cp cp-jar
            resolve-aliases makecp-aliases jvmopt-aliases main-aliases aliases] :as opts}]
   (let [deps-map (combine-deps-files opts)]
     (check-aliases deps-map (concat resolve-aliases makecp-aliases jvmopt-aliases main-aliases aliases))
     (when-not skip-cp
       (let [{:keys [lib-map classpath]} (create-classpath deps-map opts)]
         (io/write-file libs-file (pr-str lib-map))
-        (io/write-file cp-file classpath)))
+        (io/write-file cp-file classpath)
+        (when cp-jar
+          (write-pathing-jar cp-jar classpath))))
     (if-let [jvm-opts (seq (get (deps/combine-aliases deps-map (concat aliases jvmopt-aliases)) :jvm-opts))]
       (io/write-file jvm-file (str/join " " jvm-opts))
       (let [jf (jio/file jvm-file)]
@@ -96,6 +123,7 @@
     --config-data={...} - deps.edn as data
     --libs-file=path - libs cache file to write
     --cp-file=path - cp cache file to write
+    --cp-jar=path - Classpath jar file to write
     --jvm-file=path - jvm opts file to write
     --main-file=path - main opts file to write
     -Rresolve-aliases - concatenated resolve-deps alias names
